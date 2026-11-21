@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edophobia Games</title>
+<meta name="description" content="Free browser games built entirely by AI, from the Edophobia YouTube channel.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --bg:#07080f; --panel:#10131f; --line:#232a40; --text:#eef1ff; --muted:#9aa3c2; --accent:#5ee7ff; --accent2:#c86bff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:radial-gradient(1200px 600px at 50% -10%, #1a1f3d 0%, var(--bg) 60%); color:var(--text);
+         font-family:"Barlow Semi Condensed", system-ui, sans-serif; min-height:100vh; }
+  header { text-align:center; padding:64px 16px 24px; }
+  .brand { font-weight:800; font-size:clamp(40px, 8vw, 84px); letter-spacing:.06em; margin:0;
+           background:linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .sub { color:var(--muted); font-size:clamp(17px, 2.4vw, 22px); margin:8px auto 0; max-width:640px; }
+  main { max-width:1120px; margin:0 auto; padding:24px 16px 64px; display:grid; gap:28px; grid-template-columns:repeat(auto-fit, minmax(320px, 1fr)); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:18px; overflow:hidden; display:flex; flex-direction:column;
+          transition:transform .2s, border-color .2s, box-shadow .2s; }
+  .card:hover { transform:translateY(-4px); border-color:#3b4770; box-shadow:0 18px 50px rgba(0,0,0,.45); }
+  .shot { display:block; aspect-ratio:16/9; width:100%; object-fit:cover; border-bottom:1px solid var(--line); }
+  .body { padding:22px 24px 26px; display:flex; flex-direction:column; gap:10px; flex:1; }
+  .tag { align-self:flex-start; font-size:13px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--accent);
+         border:1px solid #2b5966; border-radius:999px; padding:3px 12px; }
+  h2 { margin:0; font-size:34px; font-weight:800; letter-spacing:.03em; }
+  p { margin:0; color:var(--muted); font-size:18px; line-height:1.45; }
+  .levels { color:var(--text); font-size:16px; }
+  .keys { font-size:15px; color:var(--muted); }
+  kbd { font-family:inherit; font-size:13px; font-weight:600; color:var(--text); background:#1b2033; border:1px solid #2e3653; border-bottom-width:2px; border-radius:5px; padding:1px 7px; }
+  .play { margin-top:auto; display:inline-flex; justify-content:center; align-items:center; gap:10px; text-decoration:none; color:#06121a;
+          font-weight:800; font-size:20px; letter-spacing:.08em; padding:14px 22px; border-radius:12px;
+          background:linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .play:hover { filter:brightness(1.1); }
+  footer { text-align:center; color:#6f7896; font-size:15px; padding:0 16px 40px; line-height:1.6; }
+  footer a { color:var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1 class="brand">EDOPHOBIA GAMES</h1>
+  <p class="sub">Two rhythm platformers, each built 100% by an AI. Pick one and try to beat the hardest level.</p>
+</header>
+<main>
+  <article class="card">
+    <img class="shot" src="img/prism-pulse.jpg" alt="Prism Pulse title screen">
+    <div class="body">
+      <span class="tag">Made by Claude Opus 5.5</span>
+      <h2>PRISM PULSE</h2>
+      <p>A neon rhythm platformer with three levels, each with its own synthesized soundtrack.</p>
+      <p class="levels">Neon Skyline (Easy) · Voltage Rush (Hard) · Event Horizon (Extreme)</p>
+      <p class="keys"><kbd>Space</kbd> / <kbd>Click</kbd> jump · <kbd>Esc</kbd> pause · <kbd>P</kbd> practice · <kbd>F9</kbd> hitboxes · <kbd>F8</kbd> secret auto-play</p>
+      <a class="play" href="prism-pulse/">▶ PLAY</a>
+    </div>
+  </article>
+  <article class="card">
+    <img class="shot" src="img/squarewave.jpg" alt="Squarewave title screen">
+    <div class="body">
+      <span class="tag">Made by Claude Fable 5.2</span>
+      <h2>SQUAREWAVE</h2>
+      <p>Ride the signal: jump as a cube, fly as a ship and stay on the beat.</p>
+      <p class="levels">First Signal (Easy) · Overclock (Hard) · Flatline (Extreme)</p>
+      <p class="keys"><kbd>Space</kbd> / <kbd>Click</kbd> jump and fly · <kbd>Esc</kbd> pause · <kbd>R</kbd> restart · <kbd>Z</kbd>/<kbd>X</kbd> checkpoints</p>
+      <a class="play" href="squarewave/">▶ PLAY</a>
+    </div>
+  </article>
+</main>
+<footer>
+  Best on a computer with a keyboard. Press <kbd>F11</kbd> for fullscreen.<br>
+  Fan-made games inspired by Geometry Dash. Not affiliated with RobTop Games.<br>
+  Made for the Edophobia YouTube channel.
+</footer>
+</body>
+</html>

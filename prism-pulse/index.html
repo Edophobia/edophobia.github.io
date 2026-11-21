@@ -6,7 +6,7 @@
     <title>Unity Web Player | PRISM PULSE</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
-    <style>html,body{width:100%;height:100%;overflow:hidden;background:#000} #unity-canvas{width:100%;height:100%;display:block;background:#000}</style>
+    <style>html,body{width:100%;height:100%;overflow:hidden;background:#000;touch-action:none} #unity-canvas{width:100%;height:100%;display:block;background:#000}</style>
   </head>
   <body>
     <div id="unity-container" class="unity-desktop">
@@ -116,7 +116,7 @@
 
       } else {
         // Desktop style: Render the game canvas container in a window that can be maximized to fullscreen:
-        // Fill the whole page (itch.io sets the frame size; its fullscreen button enlarges it).
+        // Fill the whole page.
         document.querySelector("#unity-container").className = "unity-mobile";
       }
 

@@ -181,7 +181,22 @@ const busy = new Map(); // channelId -> label
 let view = ls.get('op.view', null);
 let shown = PAGE;
 let lastSync = 0;
-const filt = Object.assign({ sort: 'score', range: '0', shorts: false }, ls.get('op.filters', {}));
+// ---- filters (same for every folder, remembered on this device)
+const RANGES = [
+  { key: 'score', label: 'Outlier score', steps: [0, 0.5, 1, 1.5, 2, 3, 4, 5, 7, 10, 15, 20, 30, 50, 100, Infinity], fmt: x => x + 'x' },
+  { key: 'views', label: 'Views', steps: [0, 1e3, 5e3, 1e4, 25e3, 5e4, 1e5, 25e4, 5e5, 1e6, 25e5, 5e6, 1e7, 25e6, 5e7, 1e8, Infinity] },
+  { key: 'vpd', label: 'Views per day', steps: [0, 10, 50, 100, 250, 500, 1e3, 25e2, 5e3, 1e4, 25e3, 5e4, 1e5, 5e5, 1e6, Infinity] },
+  { key: 'subs', label: 'Channel subscribers', steps: [0, 1e3, 1e4, 5e4, 1e5, 25e4, 5e5, 1e6, 25e5, 5e6, 1e7, 25e6, 5e7, 1e8, Infinity] },
+  { key: 'len', label: 'Length', steps: [0, 60, 120, 180, 300, 480, 600, 900, 1200, 1800, 2700, 3600, 5400, 7200, Infinity], fmt: s => s < 3600 ? s / 60 + ' min' : s / 3600 + ' h' },
+];
+const defaultFilters = () => ({ sort: 'score', shorts: false, from: '', to: '', r: Object.fromEntries(RANGES.map(R => [R.key, [0, R.steps.length - 1]])) });
+const filt = (() => {
+  const d = defaultFilters(), s = ls.get('op.filters2', {});
+  const f = { ...d, ...s, r: { ...d.r } };
+  for (const R of RANGES) { const v = s.r?.[R.key]; if (Array.isArray(v) && v.length === 2 && v[1] < R.steps.length) f.r[R.key] = v; }
+  return f;
+})();
+let cols = ls.get('op.cols', 4);
 
 function blankUser() {
   return { v: 1, apiKey: '', chFolders: [], svFolders: [{ id: uid(), name: 'Idea' }, { id: uid(), name: 'Format' }], channels: {} };
@@ -348,6 +363,7 @@ async function syncAll() {
   }
 }
 
+
 // ---------------------------------------------------------------- view data
 function currentFolder() {
   if (!view) return null;
@@ -379,112 +395,193 @@ function viewVideos() {
     return { ...(s.s || {}), ...(live || {}), id, note: s.n, short: s.s?.short };
   });
 }
+const vpdOf = v => v.v / Math.max(ageDays(v.p), 1);
+const subsOf = v => user.channels[v.c]?.subs ?? null;
+const GET = { score: v => v.s, views: v => v.v, vpd: vpdOf, subs: subsOf, len: v => v.d };
+const dayStart = s => s ? new Date(s + 'T00:00:00').getTime() : null;
+
+function rangeActive(R) { const [a, b] = filt.r[R.key]; return a > 0 || b < R.steps.length - 1; }
+function activeCount() { return RANGES.filter(rangeActive).length + (filt.from || filt.to ? 1 : 0); }
+
 function filtered() {
-  const range = +filt.range;
   const q = $('q').value.trim().toLowerCase();
-  let list = viewVideos().filter(v =>
-    (!range || ageDays(v.p) <= range) &&
+  const from = dayStart(filt.from), to = filt.to ? dayStart(filt.to) + DAY : null;
+  const checks = RANGES.filter(rangeActive).map(R => {
+    const [a, b] = filt.r[R.key], lo = R.steps[a], hi = R.steps[b], get = GET[R.key];
+    return v => { const x = get(v); return x != null && x >= lo && (hi === Infinity || x <= hi); };
+  });
+  const list = viewVideos().filter(v =>
     (view.type === 'sv' || filt.shorts || !v.short) &&
-    (!q || (v.t || '').toLowerCase().includes(q)));
-  const subs = v => user.channels[v.c]?.subs ?? -1;
-  const vpd = v => v.v / Math.max(ageDays(v.p), 1);
+    (!from || v.p >= from) && (!to || v.p < to) &&
+    (!q || (v.t || '').toLowerCase().includes(q)) &&
+    checks.every(c => c(v)));
+  const n = x => x ?? -1;
   const cmp = {
-    score: (a, b) => (b.s ?? -1) - (a.s ?? -1), views: (a, b) => b.v - a.v, vpd: (a, b) => vpd(b) - vpd(a),
+    score: (a, b) => n(b.s) - n(a.s), views: (a, b) => b.v - a.v, vpd: (a, b) => vpdOf(b) - vpdOf(a),
     date: (a, b) => b.p - a.p, oldest: (a, b) => a.p - b.p, dur: (a, b) => b.d - a.d, short: (a, b) => a.d - b.d,
-    subs: (a, b) => subs(b) - subs(a) || (b.s ?? -1) - (a.s ?? -1),
-  }[filt.sort];
+    subs: (a, b) => n(subsOf(b)) - n(subsOf(a)) || n(b.s) - n(a.s),
+  }[filt.sort] || ((a, b) => n(b.s) - n(a.s));
   return list.sort(cmp);
 }
 
 // ---------------------------------------------------------------- render
-const BOOKMARK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>';
-const BOOKMARK_FILLED = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>';
+const IC = {
+  folder: '<svg class="ic" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  bookmark: '<svg viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>',
+  star: '<svg class="ic" viewBox="0 0 24 24"><path d="M6 3h12v18l-6-4.5L6 21z"/></svg>',
+};
 
 let renderQ = false;
 function renderSoon() { if (!renderQ) { renderQ = true; requestAnimationFrame(() => { renderQ = false; render(); }); } }
 
-function renderSide() {
+function renderNav() {
   const item = (f, type, count, ic) => `<button class="nav-item ${view?.type === type && view.id === f.id ? 'active' : ''}" data-view="${type}:${f.id}">
-      <span class="ic">${ic}</span><span>${esc(f.name)}</span><span class="count">${count}</span></button>`;
-  $('chFolders').innerHTML = user.chFolders.map(f => item(f, 'ch', f.ch.length, '▸')).join('') ||
-    '<div class="nav-empty">No folders yet. Press + to make one.</div>';
-  $('svFolders').innerHTML = user.svFolders.map(f => item(f, 'sv', Object.values(saves).filter(s => s.f.includes(f.id)).length, '★')).join('') ||
+      ${ic}<span class="nm">${esc(f.name)}</span><span class="count">${count}</span></button>`;
+  $('chFolders').innerHTML = user.chFolders.map(f => item(f, 'ch', f.ch.length, IC.folder)).join('') ||
+    '<div class="nav-empty">No folders yet. Press + New to make one, like "AI creators".</div>';
+  $('svFolders').innerHTML = user.svFolders.map(f => item(f, 'sv', Object.values(saves).filter(s => s.f.includes(f.id)).length, IC.star)).join('') ||
     '<div class="nav-empty">No save folders yet.</div>';
-  $('me').innerHTML = `${me.photoURL ? `<img src="${esc(me.photoURL)}" alt="" referrerpolicy="no-referrer">` : ''}<span class="name">${esc(me.displayName || me.email || '')}</span><button class="link-btn" id="signOut">Sign out</button>`;
+  $('avatar').innerHTML = me.photoURL ? `<img src="${esc(me.photoURL)}" alt="" referrerpolicy="no-referrer">` : '';
 }
+
+function rangeLabel(R) {
+  const [a, b] = filt.r[R.key], f = R.fmt || num, last = R.steps.length - 1;
+  if (a === 0 && b === last) return 'Any';
+  if (b === last) return f(R.steps[a]) + '+';
+  if (a === 0) return 'Up to ' + f(R.steps[b]);
+  return f(R.steps[a]) + ' – ' + f(R.steps[b]);
+}
+function dateLabel() {
+  const f = s => new Date(s + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  if (filt.from && filt.to) return f(filt.from) + ' – ' + f(filt.to);
+  if (filt.from) return 'Since ' + f(filt.from);
+  if (filt.to) return 'Before ' + f(filt.to);
+  return 'Any time';
+}
+function buildSliders() {
+  $('sliders').innerHTML = RANGES.map(R => {
+    const last = R.steps.length - 1, f = R.fmt || num;
+    return `<div class="f-sec" data-sec="${R.key}">
+      <div class="f-top"><span class="f-label">${R.label}</span><span class="f-val" data-val="${R.key}"></span><button class="f-reset" data-reset="${R.key}" title="Reset">↺</button></div>
+      <div class="range" data-range="${R.key}">
+        <div class="track"></div><div class="fill"></div>
+        <input type="range" min="0" max="${last}" step="1" data-end="0" aria-label="${R.label} minimum">
+        <input type="range" min="0" max="${last}" step="1" data-end="1" aria-label="${R.label} maximum">
+      </div>
+      <div class="range-ends"><span>${f(R.steps[0])}</span><span>${f(R.steps[last - 1])}+</span></div>
+    </div>`;
+  }).join('');
+}
+function syncFilterUI() {
+  for (const R of RANGES) {
+    const box = document.querySelector(`[data-range="${R.key}"]`); if (!box) continue;
+    const [a, b] = filt.r[R.key], last = R.steps.length - 1;
+    const [i0, i1] = box.querySelectorAll('input');
+    i0.value = a; i1.value = b;
+    const pa = a / last, pb = b / last;
+    const fill = box.querySelector('.fill');
+    fill.style.left = `calc(9px + (100% - 18px) * ${pa})`; fill.style.width = `calc((100% - 18px) * ${pb - pa})`;
+    // keep the handle you can still move on top when both sit at the far end
+    i0.style.zIndex = a === last ? 3 : 1; i1.style.zIndex = 2;
+    document.querySelector(`[data-val="${R.key}"]`).textContent = rangeLabel(R);
+    document.querySelector(`[data-sec="${R.key}"]`).classList.toggle('on', rangeActive(R));
+  }
+  $('sort').value = filt.sort; $('shorts').checked = filt.shorts;
+  $('dateFrom').value = filt.from; $('dateTo').value = filt.to;
+  $('dateVal').textContent = dateLabel();
+  $('dateSec').classList.toggle('on', !!(filt.from || filt.to));
+  const today = new Date(); const iso = d => new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+  for (const b of $('dateQuick').querySelectorAll('button')) {
+    const d = new Date(today); d.setDate(d.getDate() - +b.dataset.days);
+    b.classList.toggle('on', !filt.to && filt.from === iso(d));
+  }
+  const n = activeCount();
+  $('filtersCount').hidden = !n; $('filtersCount').textContent = n;
+  $('resetAll').hidden = !n;
+  // active filter pills above the grid
+  const pills = RANGES.filter(rangeActive).map(R => `<span class="af">${R.label}: ${rangeLabel(R)}<button data-reset="${R.key}" title="Remove">×</button></span>`);
+  if (filt.from || filt.to) pills.push(`<span class="af">${dateLabel()}<button data-reset="date" title="Remove">×</button></span>`);
+  $('activeFilters').innerHTML = pills.join('');
+}
+
+function effectiveCols() {
+  const w = $('grid').clientWidth || $('main').clientWidth - 48;
+  return Math.max(1, Math.min(cols, Math.floor((w + 16) / (240 + 16))));
+}
+function applyCols() { $('grid').style.setProperty('--cols', effectiveCols()); }
 
 function render() {
   if (!user) return;
-  renderSide();
+  renderNav();
+  syncFilterUI();
+  applyCols();
   const f = currentFolder();
   $('folderMenu').hidden = !f;
   $('addRow').hidden = !f || view.type !== 'ch';
-  document.querySelector('.filters').hidden = !f;
-  $('viewTitle').textContent = f ? f.name : 'Outlierphobia';
-  $('sort').value = filt.sort; $('range').value = filt.range; $('shorts').checked = filt.shorts;
+  $('viewTitle').textContent = f ? f.name : 'Welcome';
 
   if (!f) {
     $('chips').innerHTML = ''; $('status').innerHTML = ''; $('more').innerHTML = '';
-    $('list').innerHTML = `<div class="empty"><h2>Make your first channel folder</h2>Group channels you want to study, like "AI creators".<br><br><button class="btn primary" data-act="newCh">New channel folder</button></div>`;
+    $('grid').innerHTML = `<div class="empty"><h2>Make your first channel folder</h2>Group the channels you want to study, like "AI creators".<br><button class="btn primary" data-act="newCh">New channel folder</button></div>`;
     return;
   }
 
+  let loadingN = 0;
   if (view.type === 'ch') {
     $('chips').innerHTML = f.ch.map(id => {
       const ch = user.channels[id] || { t: id }, c = cache[id];
       const loading = busy.has(id + ':long') || busy.has(id + ':shorts');
-      const st = loading ? (c?.long ? 'updating…' : 'loading…') : c?.err ? `<span class="err">${esc(c.err)}</span>` : c?.long ? c.long.length + ' videos' : '';
+      if (loading) loadingN++;
+      const st = loading ? (c?.long ? 'updating…' : 'loading…') : c?.err ? `<span class="err">${esc(c.err)}</span>` : c?.long ? c.long.length.toLocaleString() + ' videos' : '';
       return `<div class="chip" title="${esc(ch.t)}${ch.subs != null ? ' · ' + num(ch.subs) + ' subscribers' : ''}">
-        ${ch.th ? `<img src="${esc(ch.th)}" alt="" referrerpolicy="no-referrer">` : ''}<span class="nm">${esc(ch.t)}</span><span class="st">${st}</span>
+        ${ch.th ? `<img src="${esc(ch.th)}" alt="" referrerpolicy="no-referrer">` : '<span class="ph"></span>'}<span class="nm">${esc(ch.t)}</span><span class="st">${st}</span>
         <button class="x" data-rmch="${id}" title="Remove from this folder">×</button></div>`;
     }).join('');
   }
 
   const list = filtered();
-  const loadingN = [...busy.keys()].filter(k => view.type === 'ch' && f.ch.includes(k.split(':')[0])).length;
-  const parts = [`<b>${list.length.toLocaleString()}</b> videos`];
-  if (view.type === 'ch') parts.push(`${f.ch.length} channel${f.ch.length === 1 ? '' : 's'}`);
-  if (loadingN) parts.push(`updating ${loadingN}…`);
-  else if (lastSync && view.type === 'ch') parts.push('up to date');
-  $('status').innerHTML = parts.join(' · ');
+  const total = viewVideos().filter(v => view.type === 'sv' || filt.shorts || !v.short).length;
+  $('status').innerHTML = (loadingN ? '<span class="spin"></span>' : '') +
+    `<span><b>${list.length.toLocaleString()}</b>${list.length !== total ? ' of ' + total.toLocaleString() : ''} videos${loadingN ? ` · updating ${loadingN}…` : ''}</span>`;
 
   if (!list.length) {
-    $('list').innerHTML = view.type === 'ch'
-      ? (f.ch.length ? (loadingN ? '<div class="empty">Loading videos…</div>' : '<div class="empty">No videos match these filters.</div>')
-        : `<div class="empty"><h2>Add a channel</h2>Paste a channel link like youtube.com/@mkbhd above.${user.apiKey ? '' : '<br>First, add your YouTube API key (bottom left).'}</div>`)
-      : `<div class="empty"><h2>Nothing saved here yet</h2>Press the bookmark on any video to save it to this folder.</div>`;
-    $('more').innerHTML = '';
+    let html;
+    if (view.type === 'sv') html = `<div class="empty"><h2>Nothing saved here yet</h2>Hover a video and press the bookmark to save it to this folder.</div>`;
+    else if (!f.ch.length) html = `<div class="empty"><h2>Add a channel</h2>Paste a channel link like youtube.com/@mkbhd in the box above.${user.apiKey ? '' : '<br>First, add your YouTube API key in Settings.'}</div>`;
+    else if (loadingN) html = Array.from({ length: effectiveCols() * 2 }, () => '<div class="card sk"><div class="thumb"></div><div class="line"></div><div class="line s"></div></div>').join('');
+    else html = `<div class="empty"><h2>No videos match</h2>Try loosening the filters.${activeCount() ? '<br><button class="btn" data-act="resetAll">Reset all filters</button>' : ''}</div>`;
+    $('grid').innerHTML = html; $('more').innerHTML = '';
     return;
   }
 
-  const head = `<div class="row-v row-head"><div></div><div>Video</div><div class="num">Views</div><div class="num">Per day</div><div class="num">Uploaded</div><div class="num">Length</div><div></div></div>`;
-  $('list').innerHTML = head + list.slice(0, shown).map(rowHtml).join('');
-  $('more').innerHTML = list.length > shown ? `<button class="btn" data-act="more">See more (${(list.length - shown).toLocaleString()} left)</button>` : '';
+  const c = effectiveCols();
+  const count = Math.ceil(shown / c) * c;
+  $('grid').innerHTML = list.slice(0, count).map(cardHtml).join('');
+  $('more').innerHTML = list.length > count ? `<button class="btn" data-act="more">Show more · ${(list.length - count).toLocaleString()} left</button>` : '';
 }
 
-function rowHtml(v) {
+function cardHtml(v) {
   const ch = user.channels[v.c] || { t: v.ct || '' };
   const url = v.short ? `https://www.youtube.com/shorts/${v.id}` : `https://www.youtube.com/watch?v=${v.id}`;
   const isNew = ageDays(v.p) < MIN_AGE_DAYS;
-  const vpd = v.v / Math.max(ageDays(v.p), 1);
   const sv = saves[v.id];
-  return `<div class="row-v">
-    <a class="th" href="${url}" target="_blank" rel="noopener">
-      <img src="https://i.ytimg.com/vi/${v.id}/mqdefault.jpg" alt="" loading="lazy">
-      <span class="badge ${scoreCls(v.s)} ${isNew ? 'new' : ''}">${scoreTxt(v.s)}</span>
-      <span class="dur">${v.short ? 'Short · ' : ''}${dur(v.d)}</span>
+  return `<div class="card">
+    <a class="thumb" href="${url}" target="_blank" rel="noopener">
+      <img src="https://i.ytimg.com/vi/${v.id}/hqdefault.jpg" alt="" loading="lazy">
+      <span class="badge ${scoreCls(v.s)}" title="Outlier score">${scoreTxt(v.s)}</span>
+      ${isNew ? '<span class="tag-new">Too new</span>' : ''}
+      <span class="dur">${v.short ? 'SHORT · ' : ''}${dur(v.d)}</span>
     </a>
-    <div class="info">
-      <a class="title" href="${url}" target="_blank" rel="noopener">${esc(v.t)}</a>
-      <div class="ch">${esc(ch.t)}${ch.subs != null ? ' · ' + num(ch.subs) + ' subs' : ''}${isNew ? '<span class="tag-new">TOO NEW</span>' : ''}</div>
-      <div class="mob"><b>${num(v.v)}</b> views · ${num(vpd)}/day · ${ago(v.p)}</div>
-      ${v.note ? `<div class="note">${esc(v.note)}</div>` : ''}
+    <button class="save-btn ${sv ? 'on' : ''}" data-save="${v.id}" title="${sv ? 'Saved · edit' : 'Save'}" aria-label="${sv ? 'Saved, edit' : 'Save video'}">${IC.bookmark}</button>
+    <div class="meta">
+      ${ch.th ? `<img class="ch-av" src="${esc(ch.th)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : '<span class="ch-av"></span>'}
+      <div class="info">
+        <a class="title" href="${url}" target="_blank" rel="noopener" title="${esc(v.t)}">${esc(v.t)}</a>
+        <div class="ch-line">${esc(ch.t)}${ch.subs != null ? ' · ' + num(ch.subs) + ' subs' : ''}</div>
+        <div class="stats"><b>${num(v.v)} views</b> · ${num(vpdOf(v))}/day · ${ago(v.p)}</div>
+        ${v.note ? `<div class="note">${esc(v.note)}</div>` : ''}
+      </div>
     </div>
-    <div class="num">${num(v.v)}</div>
-    <div class="num">${num(vpd)}</div>
-    <div class="num">${ago(v.p)}</div>
-    <div class="num">${dur(v.d)}</div>
-    <button class="save-btn" data-save="${v.id}" title="${sv ? 'Saved. Edit' : 'Save'}">${sv ? BOOKMARK_FILLED : BOOKMARK}${sv ? '<span class="saved-check">✓</span>' : ''}</button>
   </div>`;
 }
 
@@ -496,12 +593,13 @@ function ask({ title, text = '', value = null, ok = 'OK', extra = null }) {
     $('askInput').hidden = value == null; $('askInput').value = value ?? '';
     $('askOk').textContent = ok;
     $('askExtra').hidden = !extra; if (extra) $('askExtra').textContent = extra;
-    const done = r => { d.close(); cleanup(); res(r); };
+    let settled = false;
+    const done = r => { if (settled) return; settled = true; cleanup(); if (d.open) d.close(); res(r); };
     const onOk = () => done({ ok: true, value: $('askInput').value.trim() });
     const onCancel = () => done({ ok: false });
     const onExtra = () => done({ extra: true });
     const onKey = e => { if (e.key === 'Enter' && value != null) { e.preventDefault(); onOk(); } };
-    const onClose = () => { cleanup(); res({ ok: false }); };
+    const onClose = () => done({ ok: false });
     function cleanup() {
       $('askOk').removeEventListener('click', onOk); $('askCancel').removeEventListener('click', onCancel);
       $('askExtra').removeEventListener('click', onExtra); $('askInput').removeEventListener('keydown', onKey);
@@ -509,7 +607,7 @@ function ask({ title, text = '', value = null, ok = 'OK', extra = null }) {
     }
     $('askOk').addEventListener('click', onOk); $('askCancel').addEventListener('click', onCancel);
     $('askExtra').addEventListener('click', onExtra); $('askInput').addEventListener('keydown', onKey);
-    d.addEventListener('close', onClose, { once: true });
+    d.addEventListener('close', onClose);
     d.showModal();
     if (value != null) { $('askInput').focus(); $('askInput').select(); }
   });
@@ -518,6 +616,7 @@ function ask({ title, text = '', value = null, ok = 'OK', extra = null }) {
 function openKey(err = '') {
   $('keyInput').value = user.apiKey || '';
   $('keyErr').textContent = err;
+  if ($('setDlg').open) $('setDlg').close();
   if (!$('keyDlg').open) $('keyDlg').showModal();
 }
 $('keyCancel').onclick = () => $('keyDlg').close();
@@ -535,6 +634,25 @@ $('keySave').onclick = async () => {
     $('keyErr').textContent = e.reason === 'quotaExceeded' ? 'Key works, but today\'s limit is used up.' : 'That key didn\'t work: ' + e.message;
   } finally { $('keySave').disabled = false; }
 };
+
+function openSettings() {
+  for (const b of $('sizeSeg').querySelectorAll('button')) b.classList.toggle('on', +b.dataset.cols === cols);
+  $('keyState').textContent = user.apiKey ? 'Saved ✓' : 'Not set';
+  $('meName').textContent = me.email || me.displayName || '';
+  $('setDlg').showModal();
+}
+$('settingsBtn').onclick = openSettings;
+$('setClose').onclick = () => $('setDlg').close();
+$('sizeSeg').onclick = e => {
+  const b = e.target.closest('button[data-cols]'); if (!b) return;
+  cols = +b.dataset.cols; ls.set('op.cols', cols);
+  for (const x of $('sizeSeg').querySelectorAll('button')) x.classList.toggle('on', x === b);
+  render();
+};
+$('keyBtn').onclick = () => openKey();
+$('signOut').onclick = () => backend.signOut();
+$('exportBtn').onclick = () => exportBackup();
+$('importBtn').onclick = () => $('importFile').click();
 
 let saveFor = null;
 function openSave(id) {
@@ -557,7 +675,7 @@ $('saveNewFolderBtn').onclick = () => {
   const name = $('saveNewFolder').value.trim();
   if (!name) return;
   const f = { id: uid(), name }; user.svFolders.push(f); persistUser();
-  drawSaveFolders([...checkedSaveFolders(), f.id]); $('saveNewFolder').value = ''; renderSide();
+  drawSaveFolders([...checkedSaveFolders(), f.id]); $('saveNewFolder').value = ''; renderNav();
 };
 $('saveNewFolder').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); $('saveNewFolderBtn').click(); } });
 $('saveCancel').onclick = () => $('saveDlg').close();
@@ -578,10 +696,10 @@ $('saveOk').onclick = async () => {
 };
 
 // ---------------------------------------------------------------- actions
+function closeDrawers() { $('app').classList.remove('nav-open', 'filters-open'); }
 function setView(type, id) {
   view = { type, id }; ls.set('op.view', view); shown = PAGE; $('q').value = '';
-  document.getElementById('app').classList.remove('menu-open');
-  render(); window.scrollTo(0, 0);
+  closeDrawers(); render(); window.scrollTo(0, 0);
 }
 async function newFolder(type) {
   const r = await ask({ title: type === 'ch' ? 'New channel folder' : 'New save folder', value: '', ok: 'Create' });
@@ -598,9 +716,10 @@ function cleanupChannels() {
 
 $('newChFolder').onclick = () => newFolder('ch');
 $('newSvFolder').onclick = () => newFolder('sv');
-$('keyBtn').onclick = () => openKey();
-$('menuBtn').onclick = () => $('app').classList.add('menu-open');
-$('sideClose').onclick = $('scrim').onclick = () => $('app').classList.remove('menu-open');
+$('menuBtn').onclick = () => $('app').classList.toggle('nav-open');
+$('filtersBtn').onclick = () => $('app').classList.toggle('filters-open');
+$('filtersClose').onclick = $('scrim').onclick = closeDrawers;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawers(); });
 
 $('folderMenu').onclick = async () => {
   const f = currentFolder(); if (!f) return;
@@ -632,50 +751,80 @@ $('addForm').onsubmit = async e => {
   const inputs = $('addInput').value.split(/[,\n]+/).map(parseInput).filter(Boolean);
   if (!inputs.length) return;
   $('addBtn').disabled = true;
-  const fails = [];
+  const failed = [];
   let added = 0;
   for (const p of inputs) {
     try {
       const c = await resolveChannel(p);
-      if (!c) { fails.push(p.raw + ' (not found)'); continue; }
+      if (!c) { failed.push([p.raw, 'not found']); continue; }
       user.channels[c.id] = { t: c.t, th: c.th, subs: c.subs };
       if (!f.ch.includes(c.id)) { f.ch.push(c.id); added++; }
       if (!cache[c.id]?.long) enqueue(c.id, 'long');
       if (filt.shorts && !cache[c.id]?.shorts) enqueue(c.id, 'shorts');
-    } catch (err) { fails.push(p.raw + ' (' + apiFail(err) + ')'); }
+    } catch (err) { failed.push([p.raw, apiFail(err)]); }
   }
   persistUser();
   $('addBtn').disabled = false;
-  $('addInput').value = fails.length ? inputs.filter(p => fails.some(x => x.startsWith(p.raw))).map(p => p.raw).join(', ') : '';
-  if (fails.length) toast('Couldn\'t add: ' + fails.join(', '), 6000);
+  $('addInput').value = failed.map(x => x[0]).join(', ');
+  if (failed.length) toast('Couldn\'t add: ' + failed.map(x => `${x[0]} (${x[1]})`).join(', '), 6000);
   else if (added) toast(added === 1 ? 'Channel added. Loading its videos…' : added + ' channels added. Loading videos…');
   render();
 };
 
+function saveFilters() { ls.set('op.filters2', filt); }
+function filtersChanged() { saveFilters(); shown = PAGE; render(); }
+function resetFilter(key) {
+  if (key === 'date') { filt.from = ''; filt.to = ''; }
+  else { const R = RANGES.find(x => x.key === key); filt.r[key] = [0, R.steps.length - 1]; }
+  filtersChanged();
+}
+
 document.addEventListener('click', e => {
-  const t = e.target.closest('[data-view],[data-rmch],[data-save],[data-act],#signOut,#exportBtn,#importBtn');
+  const t = e.target.closest('[data-view],[data-rmch],[data-save],[data-act],[data-reset],[data-days]');
   if (!t) return;
   if (t.dataset.view) { const [type, id] = t.dataset.view.split(':'); setView(type, id); }
   else if (t.dataset.rmch) {
     const f = currentFolder(); f.ch = f.ch.filter(x => x !== t.dataset.rmch); cleanupChannels(); persistUser(); render();
   }
-  else if (t.dataset.save) openSave(t.dataset.save);
+  else if (t.dataset.save) { e.preventDefault(); openSave(t.dataset.save); }
+  else if (t.dataset.reset) resetFilter(t.dataset.reset);
+  else if (t.dataset.days) {
+    const d = new Date(); d.setDate(d.getDate() - +t.dataset.days);
+    const iso = new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+    const same = filt.from === iso && !filt.to;
+    filt.from = same ? '' : iso; filt.to = '';
+    filtersChanged();
+  }
   else if (t.dataset.act === 'more') { shown += PAGE; render(); }
   else if (t.dataset.act === 'newCh') newFolder('ch');
-  else if (t.id === 'signOut') backend.signOut();
-  else if (t.id === 'exportBtn') exportBackup();
-  else if (t.id === 'importBtn') $('importFile').click();
+  else if (t.dataset.act === 'resetAll') $('resetAll').click();
 });
 
-function saveFilters() { ls.set('op.filters', filt); }
-$('sort').onchange = () => { filt.sort = $('sort').value; saveFilters(); shown = PAGE; render(); };
-$('range').onchange = () => { filt.range = $('range').value; saveFilters(); shown = PAGE; render(); };
-$('q').oninput = () => { shown = PAGE; render(); };
-$('shorts').onchange = () => {
-  filt.shorts = $('shorts').checked; saveFilters(); shown = PAGE;
-  if (filt.shorts && view?.type === 'ch') for (const id of currentFolder()?.ch || []) if (!cache[id]?.shorts) enqueue(id, 'shorts');
-  render();
+buildSliders();
+$('sliders').addEventListener('input', e => {
+  const inp = e.target; if (inp.type !== 'range') return;
+  const key = inp.closest('[data-range]').dataset.range;
+  const r = filt.r[key], end = +inp.dataset.end;
+  let v = +inp.value;
+  v = end === 0 ? Math.min(v, r[1] - 1) : Math.max(v, r[0] + 1);
+  r[end] = v; inp.value = v;
+  saveFilters(); shown = PAGE; renderSoon();
+});
+$('resetAll').onclick = () => {
+  const d = defaultFilters();
+  filt.r = d.r; filt.from = ''; filt.to = '';
+  filtersChanged();
 };
+$('sort').onchange = () => { filt.sort = $('sort').value; filtersChanged(); };
+$('dateFrom').onchange = () => { filt.from = $('dateFrom').value; filtersChanged(); };
+$('dateTo').onchange = () => { filt.to = $('dateTo').value; filtersChanged(); };
+let qT;
+$('q').oninput = () => { clearTimeout(qT); qT = setTimeout(() => { shown = PAGE; render(); }, 120); };
+$('shorts').onchange = () => {
+  filt.shorts = $('shorts').checked; filtersChanged();
+  if (filt.shorts && view?.type === 'ch') for (const id of currentFolder()?.ch || []) if (!cache[id]?.shorts) enqueue(id, 'shorts');
+};
+new ResizeObserver(() => { if (user) { const before = $('grid').style.getPropertyValue('--cols'); applyCols(); if (before !== $('grid').style.getPropertyValue('--cols')) render(); } }).observe($('main'));
 
 function exportBackup() {
   const { apiKey, ...rest } = user;
@@ -690,6 +839,7 @@ $('importFile').onchange = async () => {
   try {
     const j = JSON.parse(await file.text());
     if (j.app !== 'outlierphobia' || !j.user) throw new Error('not an Outlierphobia backup');
+    if ($('setDlg').open) $('setDlg').close();
     const c = await ask({ title: 'Import backup?', text: 'Folders and saved videos from the file are added to what you have now. Nothing is deleted.', ok: 'Import' });
     if (!c.ok) return;
     const byName = (arr, f) => arr.find(x => x.name === f.name);
@@ -715,7 +865,7 @@ $('importFile').onchange = async () => {
 // ---------------------------------------------------------------- boot
 async function boot() {
   try { backend = LOCAL ? localBackend() : await firebaseBackend(); }
-  catch (e) { $('loading').innerHTML = `<div class="signin-box"><div class="logo big">Outlier<span>phobia</span></div><p class="err">Couldn't load. Check your connection and reload.</p></div>`; return; }
+  catch (e) { $('loading').innerHTML = `<div class="signin-box"><div class="logo big"><span class="mark"></span>Outlier<b>phobia</b></div><p class="err">Couldn't load. Check your connection and reload.</p></div>`; return; }
   $('signinBtn').onclick = async () => {
     $('signinErr').textContent = '';
     try { await backend.signIn(); } catch (e) { $('signinErr').textContent = e.code === 'auth/popup-closed-by-user' ? '' : 'Sign-in failed: ' + e.message; }
@@ -732,7 +882,7 @@ async function boot() {
       if (!data) await backend.saveUser(user);
       for (const c of cached || []) { cache[c.id] = c; if (c.long) scoreList(c.long); if (c.shorts) scoreList(c.shorts); }
     } catch (e) {
-      $('loading').innerHTML = `<div class="signin-box"><div class="logo big">Outlier<span>phobia</span></div><p class="err">Couldn't load your account: ${esc(e.message)}</p></div>`;
+      $('loading').innerHTML = `<div class="signin-box"><div class="logo big"><span class="mark"></span>Outlier<b>phobia</b></div><p class="err">Couldn't load your account: ${esc(e.message)}</p></div>`;
       return;
     }
     if (!currentFolder()) view = user.chFolders[0] ? { type: 'ch', id: user.chFolders[0].id } : null;

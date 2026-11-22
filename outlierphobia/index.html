@@ -9,151 +9,200 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
 
-<!-- Sign-in screen -->
+<!-- Sign-in -->
 <section id="signin" class="screen" hidden>
   <div class="signin-box">
-    <div class="logo big">Outlier<span>phobia</span></div>
+    <div class="logo big"><span class="mark"></span>Outlier<b>phobia</b></div>
     <p>Find the videos that blew up.</p>
-    <button class="btn primary lg" id="signinBtn">Sign in with Google</button>
+    <button class="btn primary lg" id="signinBtn">
+      <svg viewBox="0 0 48 48" width="20" height="20"><path fill="#141414" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
+      Sign in with Google
+    </button>
     <p class="small muted" id="signinErr"></p>
   </div>
 </section>
 
-<!-- Loading screen -->
 <section id="loading" class="screen">
-  <div class="logo big">Outlier<span>phobia</span></div>
+  <div class="logo big"><span class="mark"></span>Outlier<b>phobia</b></div>
 </section>
 
-<!-- App -->
 <div id="app" hidden>
-  <aside id="side">
-    <div class="side-top">
-      <div class="logo">Outlier<span>phobia</span></div>
-      <button class="icon-btn only-mobile" id="sideClose" aria-label="Close menu">✕</button>
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="tb-left">
+      <button class="icon-btn" id="menuBtn" aria-label="Folders" title="Folders">
+        <svg viewBox="0 0 24 24"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+      <div class="logo"><span class="mark"></span>Outlier<b>phobia</b></div>
     </div>
-    <div class="side-sec">
-      <div class="side-head"><span>Channel folders</span><button class="icon-btn" id="newChFolder" title="New channel folder">+</button></div>
-      <nav id="chFolders"></nav>
+    <div class="tb-search">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" id="q" placeholder="Search video titles" aria-label="Search video titles" autocomplete="off">
     </div>
-    <div class="side-sec">
-      <div class="side-head"><span>Saved</span><button class="icon-btn" id="newSvFolder" title="New save folder">+</button></div>
-      <nav id="svFolders"></nav>
+    <div class="tb-right">
+      <button class="icon-btn" id="filtersBtn" aria-label="Filters" title="Filters">
+        <svg viewBox="0 0 24 24"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+        <span class="dot-count" id="filtersCount" hidden></span>
+      </button>
+      <button class="icon-btn" id="settingsBtn" aria-label="Settings" title="Settings">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </button>
+      <div class="avatar" id="avatar"></div>
     </div>
-    <div class="side-foot">
-      <button class="link-btn" id="keyBtn">YouTube API key</button>
-      <button class="link-btn" id="exportBtn">Export backup</button>
-      <button class="link-btn" id="importBtn">Import backup</button>
-      <input type="file" id="importFile" accept="application/json" hidden>
-      <div class="me" id="me"></div>
-    </div>
-  </aside>
-  <div id="scrim" class="only-mobile"></div>
+  </header>
 
-  <main id="main">
-    <div class="topbar">
-      <button class="icon-btn only-mobile" id="menuBtn" aria-label="Menu">☰</button>
-      <h1 id="viewTitle"></h1>
-      <button class="icon-btn" id="folderMenu" title="Rename or delete folder">⋯</button>
-    </div>
+  <div class="layout">
+    <!-- Folders -->
+    <aside id="nav" class="panel-left">
+      <div class="nav-sec">
+        <div class="nav-head"><span>Channel folders</span><button class="mini-btn" id="newChFolder" title="New channel folder">+ New</button></div>
+        <nav id="chFolders"></nav>
+      </div>
+      <div class="nav-sec">
+        <div class="nav-head"><span>Saved</span><button class="mini-btn" id="newSvFolder" title="New save folder">+ New</button></div>
+        <nav id="svFolders"></nav>
+      </div>
+    </aside>
 
-    <div id="addRow" class="add-row">
-      <form id="addForm">
-        <input type="text" id="addInput" placeholder="Paste channel links or @handles (comma for several)" autocomplete="off">
-        <button class="btn primary" id="addBtn" type="submit">Add channel</button>
-      </form>
-      <div id="chips" class="chips"></div>
-    </div>
+    <!-- Main -->
+    <main id="main">
+      <div class="view-head">
+        <div class="vh-row">
+          <h1 id="viewTitle"></h1>
+          <button class="icon-btn sm" id="folderMenu" title="Rename or delete folder">
+            <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>
+          </button>
+          <span class="vh-status" id="status"></span>
+        </div>
+        <div id="addRow">
+          <form id="addForm" class="add-form">
+            <input type="text" id="addInput" placeholder="Add channels: paste a link or @handle (comma for several)" autocomplete="off">
+            <button class="btn primary" id="addBtn" type="submit">Add</button>
+          </form>
+          <div id="chips" class="chips"></div>
+        </div>
+        <div id="activeFilters" class="active-filters"></div>
+      </div>
+      <div id="grid" class="grid"></div>
+      <div id="more" class="more"></div>
+    </main>
 
-    <div class="filters">
-      <select id="sort" aria-label="Sort">
-        <option value="score">Outlier score</option>
-        <option value="views">Views</option>
-        <option value="vpd">Views per day</option>
-        <option value="date">Newest</option>
-        <option value="oldest">Oldest</option>
-        <option value="dur">Longest</option>
-        <option value="short">Shortest</option>
-        <option value="subs">Subscribers</option>
-      </select>
-      <select id="range" aria-label="Upload date">
-        <option value="0">Any time</option>
-        <option value="7">Last 7 days</option>
-        <option value="30">Last 30 days</option>
-        <option value="90">Last 3 months</option>
-        <option value="182">Last 6 months</option>
-        <option value="365">Last year</option>
-        <option value="730">Last 2 years</option>
-      </select>
-      <input type="search" id="q" placeholder="Search titles" aria-label="Search titles">
-      <label class="toggle"><input type="checkbox" id="shorts"><span></span>Shorts</label>
-    </div>
-
-    <div id="status" class="status"></div>
-    <div id="list" class="list"></div>
-    <div id="more" class="more"></div>
-  </main>
+    <!-- Filters -->
+    <aside id="filters" class="panel-right">
+      <div class="f-head">
+        <span>Filters</span>
+        <button class="mini-btn" id="resetAll">Reset all</button>
+        <button class="icon-btn sm only-drawer" id="filtersClose" aria-label="Close filters"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <div class="f-body">
+        <div class="f-sec">
+          <label class="f-label" for="sort">Sort by</label>
+          <select id="sort">
+            <option value="score">Outlier score</option>
+            <option value="views">Most views</option>
+            <option value="vpd">Views per day</option>
+            <option value="date">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="subs">Biggest channels</option>
+            <option value="dur">Longest</option>
+            <option value="short">Shortest</option>
+          </select>
+        </div>
+        <div class="f-sec f-row">
+          <span class="f-label nomargin">Show Shorts</span>
+          <label class="switch"><input type="checkbox" id="shorts"><span></span></label>
+        </div>
+        <div id="sliders"></div>
+        <div class="f-sec" id="dateSec">
+          <div class="f-top"><span class="f-label nomargin">Uploaded</span><span class="f-val" id="dateVal">Any time</span><button class="f-reset" data-reset="date" title="Reset">↺</button></div>
+          <div class="quick" id="dateQuick">
+            <button data-days="7">7 days</button><button data-days="30">30 days</button><button data-days="90">3 months</button><button data-days="365">1 year</button>
+          </div>
+          <div class="dates">
+            <label>From<input type="date" id="dateFrom"></label>
+            <label>To<input type="date" id="dateTo"></label>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+  <div id="scrim"></div>
 </div>
 
 <!-- Save dialog -->
 <dialog id="saveDlg">
-  <form method="dialog" id="saveForm">
-    <div class="dlg-video" id="saveVideo"></div>
-    <div class="dlg-label">Save to</div>
-    <div id="saveFolders" class="save-folders"></div>
-    <div class="new-folder-row">
-      <input type="text" id="saveNewFolder" placeholder="New folder name" autocomplete="off">
-      <button class="btn" type="button" id="saveNewFolderBtn">Add</button>
-    </div>
-    <div class="dlg-label">Note</div>
-    <textarea id="saveNote" rows="3" placeholder="e.g. copy the intro hook"></textarea>
-    <div class="row">
-      <button class="btn" value="cancel" type="button" id="saveCancel">Cancel</button>
-      <button class="btn primary" value="ok" type="button" id="saveOk">Save</button>
-    </div>
-  </form>
+  <div class="dlg-video" id="saveVideo"></div>
+  <div class="dlg-label">Save to</div>
+  <div id="saveFolders" class="save-folders"></div>
+  <div class="new-folder-row">
+    <input type="text" id="saveNewFolder" placeholder="New folder name" autocomplete="off">
+    <button class="btn" type="button" id="saveNewFolderBtn">Add</button>
+  </div>
+  <div class="dlg-label">Note</div>
+  <textarea id="saveNote" rows="3" placeholder="e.g. copy the intro hook"></textarea>
+  <div class="row">
+    <span style="flex:1"></span>
+    <button class="btn" type="button" id="saveCancel">Cancel</button>
+    <button class="btn primary" type="button" id="saveOk">Save</button>
+  </div>
 </dialog>
 
-<!-- Generic text / confirm dialog -->
+<!-- Generic ask -->
 <dialog id="askDlg">
-  <form method="dialog">
-    <h3 id="askTitle"></h3>
-    <p id="askText" class="muted"></p>
-    <input type="text" id="askInput" autocomplete="off">
-    <div class="row">
-      <button class="btn danger" type="button" id="askExtra" hidden></button>
-      <span style="flex:1"></span>
-      <button class="btn" type="button" id="askCancel">Cancel</button>
-      <button class="btn primary" type="button" id="askOk">OK</button>
-    </div>
-  </form>
+  <h3 id="askTitle"></h3>
+  <p id="askText" class="muted"></p>
+  <input type="text" id="askInput" autocomplete="off">
+  <div class="row">
+    <button class="btn danger" type="button" id="askExtra" hidden></button>
+    <span style="flex:1"></span>
+    <button class="btn" type="button" id="askCancel">Cancel</button>
+    <button class="btn primary" type="button" id="askOk">OK</button>
+  </div>
 </dialog>
 
-<!-- API key dialog -->
+<!-- Settings -->
+<dialog id="setDlg">
+  <h3>Settings</h3>
+  <div class="dlg-label">Videos per row</div>
+  <div class="seg" id="sizeSeg">
+    <button data-cols="3">3 · Large</button><button data-cols="4">4 · Normal</button><button data-cols="5">5 · Small</button><button data-cols="6">6 · Tiny</button>
+  </div>
+  <p class="small muted">On smaller screens it fits fewer per row automatically.</p>
+  <div class="dlg-label">Account</div>
+  <div class="set-list">
+    <button class="set-item" id="keyBtn"><span>YouTube API key</span><span class="muted" id="keyState"></span></button>
+    <button class="set-item" id="exportBtn"><span>Export backup</span><span class="muted">.json file</span></button>
+    <button class="set-item" id="importBtn"><span>Import backup</span><span class="muted">adds, never deletes</span></button>
+    <button class="set-item" id="signOut"><span>Sign out</span><span class="muted" id="meName"></span></button>
+  </div>
+  <input type="file" id="importFile" accept="application/json" hidden>
+  <div class="row"><span style="flex:1"></span><button class="btn" type="button" id="setClose">Done</button></div>
+</dialog>
+
+<!-- API key -->
 <dialog id="keyDlg">
-  <form method="dialog">
-    <h3>YouTube API key</h3>
-    <p class="muted">Outlierphobia reads public YouTube data with your own free key. It's saved in your account, so you only paste it once.</p>
-    <ol class="muted">
-      <li>Open <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">YouTube Data API v3</a> and press <b>Enable</b>.</li>
-      <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials</a> → <b>Create credentials → API key</b>.</li>
-      <li>Edit the key: under <b>API restrictions</b>, allow only YouTube Data API v3.</li>
-    </ol>
-    <input type="password" id="keyInput" placeholder="Paste your API key" autocomplete="off">
-    <p class="small err" id="keyErr"></p>
-    <div class="row">
-      <span style="flex:1"></span>
-      <button class="btn" type="button" id="keyCancel">Cancel</button>
-      <button class="btn primary" type="button" id="keySave">Save</button>
-    </div>
-  </form>
+  <h3>YouTube API key</h3>
+  <p class="muted">Outlierphobia reads public YouTube data with your own free key. It's saved in your account, so you only paste it once.</p>
+  <ol class="muted">
+    <li>Open <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">YouTube Data API v3</a> and press <b>Enable</b>.</li>
+    <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials</a> → <b>Create credentials → API key</b>.</li>
+    <li>Edit the key: under <b>API restrictions</b>, allow only YouTube Data API v3.</li>
+  </ol>
+  <input type="password" id="keyInput" placeholder="Paste your API key" autocomplete="off">
+  <p class="small err" id="keyErr"></p>
+  <div class="row">
+    <span style="flex:1"></span>
+    <button class="btn" type="button" id="keyCancel">Cancel</button>
+    <button class="btn primary" type="button" id="keySave">Save</button>
+  </div>
 </dialog>
 
 <div id="toast" class="toast" hidden></div>
 
-<script type="module" src="app.js"></script>
+<script type="module" src="app.js?v=2"></script>
 </body>
 </html>

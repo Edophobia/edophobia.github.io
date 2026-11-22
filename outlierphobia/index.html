@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Outlierphobia</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#141414">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Sign-in screen -->
+<section id="signin" class="screen" hidden>
+  <div class="signin-box">
+    <div class="logo big">Outlier<span>phobia</span></div>
+    <p>Find the videos that blew up.</p>
+    <button class="btn primary lg" id="signinBtn">Sign in with Google</button>
+    <p class="small muted" id="signinErr"></p>
+  </div>
+</section>
+
+<!-- Loading screen -->
+<section id="loading" class="screen">
+  <div class="logo big">Outlier<span>phobia</span></div>
+</section>
+
+<!-- App -->
+<div id="app" hidden>
+  <aside id="side">
+    <div class="side-top">
+      <div class="logo">Outlier<span>phobia</span></div>
+      <button class="icon-btn only-mobile" id="sideClose" aria-label="Close menu">✕</button>
+    </div>
+    <div class="side-sec">
+      <div class="side-head"><span>Channel folders</span><button class="icon-btn" id="newChFolder" title="New channel folder">+</button></div>
+      <nav id="chFolders"></nav>
+    </div>
+    <div class="side-sec">
+      <div class="side-head"><span>Saved</span><button class="icon-btn" id="newSvFolder" title="New save folder">+</button></div>
+      <nav id="svFolders"></nav>
+    </div>
+    <div class="side-foot">
+      <button class="link-btn" id="keyBtn">YouTube API key</button>
+      <button class="link-btn" id="exportBtn">Export backup</button>
+      <button class="link-btn" id="importBtn">Import backup</button>
+      <input type="file" id="importFile" accept="application/json" hidden>
+      <div class="me" id="me"></div>
+    </div>
+  </aside>
+  <div id="scrim" class="only-mobile"></div>
+
+  <main id="main">
+    <div class="topbar">
+      <button class="icon-btn only-mobile" id="menuBtn" aria-label="Menu">☰</button>
+      <h1 id="viewTitle"></h1>
+      <button class="icon-btn" id="folderMenu" title="Rename or delete folder">⋯</button>
+    </div>
+
+    <div id="addRow" class="add-row">
+      <form id="addForm">
+        <input type="text" id="addInput" placeholder="Paste channel links or @handles (comma for several)" autocomplete="off">
+        <button class="btn primary" id="addBtn" type="submit">Add channel</button>
+      </form>
+      <div id="chips" class="chips"></div>
+    </div>
+
+    <div class="filters">
+      <select id="sort" aria-label="Sort">
+        <option value="score">Outlier score</option>
+        <option value="views">Views</option>
+        <option value="vpd">Views per day</option>
+        <option value="date">Newest</option>
+        <option value="oldest">Oldest</option>
+        <option value="dur">Longest</option>
+        <option value="short">Shortest</option>
+        <option value="subs">Subscribers</option>
+      </select>
+      <select id="range" aria-label="Upload date">
+        <option value="0">Any time</option>
+        <option value="7">Last 7 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 3 months</option>
+        <option value="182">Last 6 months</option>
+        <option value="365">Last year</option>
+        <option value="730">Last 2 years</option>
+      </select>
+      <input type="search" id="q" placeholder="Search titles" aria-label="Search titles">
+      <label class="toggle"><input type="checkbox" id="shorts"><span></span>Shorts</label>
+    </div>
+
+    <div id="status" class="status"></div>
+    <div id="list" class="list"></div>
+    <div id="more" class="more"></div>
+  </main>
+</div>
+
+<!-- Save dialog -->
+<dialog id="saveDlg">
+  <form method="dialog" id="saveForm">
+    <div class="dlg-video" id="saveVideo"></div>
+    <div class="dlg-label">Save to</div>
+    <div id="saveFolders" class="save-folders"></div>
+    <div class="new-folder-row">
+      <input type="text" id="saveNewFolder" placeholder="New folder name" autocomplete="off">
+      <button class="btn" type="button" id="saveNewFolderBtn">Add</button>
+    </div>
+    <div class="dlg-label">Note</div>
+    <textarea id="saveNote" rows="3" placeholder="e.g. copy the intro hook"></textarea>
+    <div class="row">
+      <button class="btn" value="cancel" type="button" id="saveCancel">Cancel</button>
+      <button class="btn primary" value="ok" type="button" id="saveOk">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Generic text / confirm dialog -->
+<dialog id="askDlg">
+  <form method="dialog">
+    <h3 id="askTitle"></h3>
+    <p id="askText" class="muted"></p>
+    <input type="text" id="askInput" autocomplete="off">
+    <div class="row">
+      <button class="btn danger" type="button" id="askExtra" hidden></button>
+      <span style="flex:1"></span>
+      <button class="btn" type="button" id="askCancel">Cancel</button>
+      <button class="btn primary" type="button" id="askOk">OK</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- API key dialog -->
+<dialog id="keyDlg">
+  <form method="dialog">
+    <h3>YouTube API key</h3>
+    <p class="muted">Outlierphobia reads public YouTube data with your own free key. It's saved in your account, so you only paste it once.</p>
+    <ol class="muted">
+      <li>Open <a href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener">YouTube Data API v3</a> and press <b>Enable</b>.</li>
+      <li>Go to <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Credentials</a> → <b>Create credentials → API key</b>.</li>
+      <li>Edit the key: under <b>API restrictions</b>, allow only YouTube Data API v3.</li>
+    </ol>
+    <input type="password" id="keyInput" placeholder="Paste your API key" autocomplete="off">
+    <p class="small err" id="keyErr"></p>
+    <div class="row">
+      <span style="flex:1"></span>
+      <button class="btn" type="button" id="keyCancel">Cancel</button>
+      <button class="btn primary" type="button" id="keySave">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast" hidden></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
